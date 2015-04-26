@@ -1,0 +1,125 @@
+---
+title: "Practical Machine Learning Assignment"
+author: "Raymond Chua"
+date: "26 April 2015"
+output: pdf_document
+---
+
+#Executive Summary
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+In this assignment, I used both Classification and Regression Tree(CART) and Random Forest to produce the best model. 
+With an accuracy of 98.5% on test data, the Random Forest is eventually selected as the best model. 
+
+##Loading up the required libraries
+
+```{r,echo=TRUE}
+library(caTools)
+library(caret)
+library(randomForest)
+library(corrplot)
+library(e1071)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+```
+
+##Reading the data
+
+```{r, echo=TRUE}
+setwd("~/Documents/Coursera/Practical Machine Learning")
+activityTrain = read.csv("pml-training.csv")
+activityTest = read.csv("pml-testing.csv")
+```
+
+##Cleaning the data
+```{r,echo=TRUE}
+#remove columns with NA values
+activityTrain = activityTrain[,colSums(is.na(activityTrain)) == 0]
+activityTest = activityTest[,colSums(is.na(activityTest)) == 0]
+
+#remove column X, columns with Time Stamps and columns windows 
+drops = c("X", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window")
+activityTrain = activityTrain[,!(names(activityTrain) %in% drops)]
+activityTest = activityTest[,!(names(activityTest) %in% drops)]
+
+#convert all columns except classe to numeric
+classe <- activityTrain$classe
+activityTrain <- activityTrain[, sapply(activityTrain, is.numeric)]
+activityTrain$classe <- classe
+activityTest <- activityTest[, sapply(activityTest, is.numeric)]
+```
+
+## Split the activityTrain data into training and testing data sets
+```{r,echo=TRUE}
+#Split the data
+set.seed(3000)
+spl = sample.split(activityTrain$classe, SplitRatio = 0.7)
+Train = subset(activityTrain, spl==TRUE)
+Test = subset(activityTrain, spl==FALSE)
+```
+
+## Build a Classification and Regression Model(CART) 
+A CART is a form of decision tree.
+
+```{r,echo=TRUE}
+cartTree = rpart(classe ~ ., data = Train, method="class", minbucket=100)
+```
+
+## Make prediction using the CART Model and check for accuracy using the Test data
+```{r,echo=TRUE}
+# Make Predictions using the CART Model
+PredictCART = predict(cartTree, newdata = Test, type = "class")
+
+# Confusion Matrix using CART Model
+confusionMatrixCart = confusionMatrix(Test$classe, PredictCART)
+confusionMatrixCart
+
+#Accuracy using CART Model
+AccuracyCART = confusionMatrixCart$overall[1]
+AccuracyCART
+
+#Out of Sample Error
+errRate = 1 - unname(AccuracyCART)
+errRate
+```
+
+Next, we will try to build a random forest model to see if we can get a better accuracy on the test data.
+
+## Build a Random Forest Model
+
+```{r,echo=TRUE}
+trainForest = randomForest(classe ~ . , data = Train, ntree=200, nodesize=25)
+```
+
+## Make prediction using the Random Forest Model and check for accuracy using the Test data
+
+```{r,echo=TRUE}
+# Make Predictions using the Random Forest Model
+predictForest = predict(trainForest, newdata = Test)
+
+# Confusion Matrix using Random Forest Model
+confusionMatrixRF = confusionMatrix(Test$classe, predictForest)
+confusionMatrixRF
+
+#Accuracy using Random Forest Model
+AccuracyRF = confusionMatrixRF$overall[1]
+AccuracyRF
+
+#Out of Sample Error
+errRateRF = 1 - unname(AccuracyRF)
+errRateRF
+```
+
+## Appendix : Figures
+
+###Correlation Matrix Visualization
+```{r, echo=TRUE, fig.height=10, fig.width=10}
+corrPlot <- cor(Train[, -length(names(Train))])
+corrplot(corrPlot, method="color")
+```
+
+###Classification Tree Visualization
+```{r,echo=TRUE, fig.height=10, fig.width=10}
+prp(cartTree, split.cex=1.5)
+```
